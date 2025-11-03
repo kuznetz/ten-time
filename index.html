@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Десятичные часы</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .center-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            padding: 40px;
+            text-align: center;
+            transition: box-shadow 0.3s ease;
+        }
+        
+        .center-card:hover {
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+        
+        h1 {
+            color: #2d3436;
+            margin-bottom: 40px;
+            font-weight: 600;
+            font-size: 24px;
+        }
+        
+        p {
+            color: #636e72;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2d3436;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 35px;
+            transition: border 0.3s ease, box-shadow 0.3s ease;
+            text-align: center;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #6c5ce7;
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+            text-align: center;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(38, 117, 252, 0.4);
+        }
+        
+        .divider {
+            height: 1px;
+            background: #eee;
+            margin: 30px 0;
+        }
+        
+        .footer-text {
+            font-size: 14px;
+            color: #b2bec3;
+        }
+        
+        .footer-text a {
+            color: #6c5ce7;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-text a:hover {
+            color: #4e3ac9;
+            text-decoration: underline;
+        }
+        
+        canvas.clock {
+            background-color: white;
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        }        
+    </style>
+    <script>
+    
+      const timezone = new Date().getTimezoneOffset()
+    
+      function formatTime(date) {
+          const hours = date.getHours().toString().padStart(2, '0');
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          const seconds = date.getSeconds().toString().padStart(2, '0');
+          return `${hours}:${minutes}:${seconds}`;
+      }
+      
+      function updateTime() {
+          document.getElementById('normtime').value = formatTime(new Date());
+      }
+      
+      function getTenTime() {
+          const now = new Date()
+          const fullDayMs = 86400000 //24 * 3600 * 1000
+          const dayMs = now.getHours() * 3600000 + now.getMinutes() * 60000 + now.getSeconds() * 1000 + now.getMilliseconds();
+          const tenTime = dayMs / fullDayMs
+          return tenTime
+      }
+      
+      function formatTenTime(tt) {
+        tt = Math.floor(tt * 100000)
+        const str = tt.toString();
+        const formatted = `${str.slice(0, 2)} ${str.slice(2, 4)} ${str.slice(4)}`;
+        return formatted
+      }
+      
+      function updateTenTime() {
+          document.getElementById('tentime').value = formatTenTime(getTenTime());
+      }
+      
+      /*
+      let curTenTime2 = getTenTime()
+      function updateTenTime2() {
+          document.getElementById('tentime2').value = formatTenTime(curTenTime2);
+          curTenTime2 += 1
+      }
+      */
+      //***********************
+
+      class AnalogClock {
+          constructor(canvasId) {
+              this.canvas = document.getElementById(canvasId);
+              this.ctx = this.canvas.getContext('2d');
+              this.pixelRatio = window.devicePixelRatio || 1;
+              this.isRunning = false;
+              this.animationId = null;
+              
+              // Initialize with proper Hi-DPI scaling
+              this.resize();
+          }
+
+          resize() {
+              // Get the display size of the canvas
+              const displayWidth = this.canvas.clientWidth;
+              const displayHeight = this.canvas.clientHeight;
+              
+              // Set the actual size of the canvas (memory buffer)
+              this.canvas.width = displayWidth * this.pixelRatio;
+              this.canvas.height = displayHeight * this.pixelRatio;
+              
+              // Set the CSS size to maintain the original display dimensions
+              this.canvas.style.width = displayWidth + 'px';
+              this.canvas.style.height = displayHeight + 'px';
+              
+              // Scale the canvas context to account for the pixel ratio
+              this.ctx.scale(this.pixelRatio, this.pixelRatio);
+              
+              // Update clock geometry
+              this.centerX = displayWidth / 2;
+              this.centerY = displayHeight / 2;
+              this.radius = Math.min(this.centerX, this.centerY) - 10;
+              
+              this.drawClock();
+          }
+
+          drawClock() {
+              // Clear canvas - use the actual canvas dimensions for clearing
+              this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+              this.drawFace();
+              this.drawNumbers();
+              this.drawTime();
+          }
+
+          drawFace() {
+              // Outer circle
+              this.ctx.beginPath();
+              this.ctx.arc(this.centerX, this.centerY, this.radius, 0, 2 * Math.PI);
+              this.ctx.fillStyle = 'white';
+              this.ctx.fill();
+              this.ctx.strokeStyle = '#333';
+              this.ctx.lineWidth = 4;
+              this.ctx.stroke();
+              
+              // Center dot
+              this.ctx.beginPath();
+              this.ctx.arc(this.centerX, this.centerY, 8, 0, 2 * Math.PI);
+              this.ctx.fillStyle = '#333';
+              this.ctx.fill();
+          }
+
+          drawNumbers() {
+              this.ctx.font = '20px Arial';
+              this.ctx.fillStyle = '#333';
+              this.ctx.textAlign = 'center';
+              this.ctx.textBaseline = 'middle';
+              
+              // Draw hour numbers
+              for (let i = 1; i <= 12; i++) {
+                  const angle = (i - 3) * (Math.PI * 2) / 12;
+                  const x = this.centerX + Math.cos(angle) * (this.radius - 30);
+                  const y = this.centerY + Math.sin(angle) * (this.radius - 30);
+                  this.ctx.fillText(i.toString(), x, y);
+              }
+              
+              // Draw minute markers
+              for (let i = 0; i < 60; i++) {
+                  const angle = (i - 15) * (Math.PI * 2) / 60;
+                  const startRadius = i % 5 === 0 ? this.radius - 15 : this.radius - 8;
+                  const endRadius = this.radius - 5;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.moveTo(
+                      this.centerX + Math.cos(angle) * startRadius,
+                      this.centerY + Math.sin(angle) * startRadius
+                  );
+                  this.ctx.lineTo(
+                      this.centerX + Math.cos(angle) * endRadius,
+                      this.centerY + Math.sin(angle) * endRadius
+                  );
+                  this.ctx.strokeStyle = i % 5 === 0 ? '#333' : '#666';
+                  this.ctx.lineWidth = i % 5 === 0 ? 3 : 1;
+                  this.ctx.stroke();
+              }
+          }
+
+          drawTime() {
+              const now = new Date();
+              let hour = now.getHours() % 12;
+              const minute = now.getMinutes();
+              const second = now.getSeconds();
+              const millisecond = now.getMilliseconds();
+              
+              // Hour hand
+              const hourAngle = ((360 * ((hour * 60 + minute) / (12*60))) - 90) * (Math.PI / 180)
+              this.drawHand(hourAngle, this.radius * 0.5, 6, '#333');
+              
+              // Minute hand
+              const minuteAngle = ((360 * ((minute*60 + second) / (60*60))) - 90) * (Math.PI / 180)
+              this.drawHand(minuteAngle, this.radius * 0.7, 4, '#666');
+              
+              // Second hand
+              const secondAngle = ((360 * ((second*1000 + millisecond) / (60*1000))) - 90) * (Math.PI / 180)
+              this.drawHand(secondAngle, this.radius * 0.8, 2, 'red');
+          }
+
+          drawHand(angle, length, width, color) {
+              this.ctx.beginPath();
+              this.ctx.moveTo(this.centerX, this.centerY);
+              this.ctx.lineTo(
+                  this.centerX + Math.cos(angle) * length,
+                  this.centerY + Math.sin(angle) * length
+              );
+              this.ctx.strokeStyle = color;
+              this.ctx.lineWidth = width;
+              this.ctx.lineCap = 'round';
+              this.ctx.stroke();
+          }
+
+          // Animation methods
+          updateClock() {
+              this.drawClock();
+              if (this.isRunning) {
+                  this.animationId = requestAnimationFrame(() => this.updateClock());
+              }
+          }
+
+          start() {
+              if (!this.isRunning) {
+                  this.isRunning = true;
+                  this.updateClock();
+              }
+          }
+
+          stop() {
+              this.isRunning = false;
+              if (this.animationId) {
+                  cancelAnimationFrame(this.animationId);
+                  this.animationId = null;
+              }
+          }
+      }
+      
+      //************************
+      
+      class AnalogTenClock {
+          constructor(canvasId) {
+              this.canvas = document.getElementById(canvasId);
+              this.ctx = this.canvas.getContext('2d');
+              this.pixelRatio = window.devicePixelRatio || 1;
+              this.isRunning = false;
+              this.animationId = null;
+              
+              // Initialize with proper sizing
+              this.resize();
+          }
+
+          resize() {
+              // Get the display size of canvas
+              const displayWidth = this.canvas.clientWidth;
+              const displayHeight = this.canvas.clientHeight;
+              
+              // Set the actual size in memory (scaled for pixel ratio)
+              this.canvas.width = displayWidth * this.pixelRatio;
+              this.canvas.height = displayHeight * this.pixelRatio;
+              
+              // Normalize coordinate system to use CSS pixels
+              this.canvas.style.width = displayWidth + 'px';
+              this.canvas.style.height = displayHeight + 'px';
+              
+              // Scale all drawing operations by pixel ratio
+              this.ctx.scale(this.pixelRatio, this.pixelRatio);
+              
+              // Update dimensions
+              this.centerX = displayWidth / 2;
+              this.centerY = displayHeight / 2;
+              this.radius = Math.min(this.centerX, this.centerY) - 10;
+              
+              // Redraw if already running
+              if (this.isRunning) {
+                  this.drawClock();
+              }
+          }
+
+          drawClock() {
+              // Clear the entire canvas (accounting for pixel ratio)
+              this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+              this.drawFace();
+              this.drawNumbers();
+              this.drawTime();
+          }
+
+          drawFace() {
+              // Outer circle
+              this.ctx.beginPath();
+              this.ctx.arc(this.centerX, this.centerY, this.radius, 0, 2 * Math.PI);
+              this.ctx.fillStyle = 'white';
+              this.ctx.fill();
+              this.ctx.strokeStyle = '#333';
+              this.ctx.lineWidth = 4;
+              this.ctx.stroke();
+              
+              // Center dot
+              this.ctx.beginPath();
+              this.ctx.arc(this.centerX, this.centerY, 8, 0, 2 * Math.PI);
+              this.ctx.fillStyle = '#333';
+              this.ctx.fill();
+          }
+
+          drawNumbers() {
+              this.ctx.font = '20px Arial, sans-serif';
+              this.ctx.fillStyle = '#333';
+              this.ctx.textAlign = 'center';
+              this.ctx.textBaseline = 'middle';
+              
+              // Draw numbers
+              for (let i = 0; i <= 9; i++) {
+                  const angle = (i + 2.5) * (Math.PI * 2) / 10;
+                  const x = this.centerX + Math.cos(angle) * (this.radius - 25);
+                  const y = this.centerY + Math.sin(angle) * (this.radius - 25);
+                  this.ctx.fillText(i.toString(), x, y);
+              }
+              
+              // Draw markers
+              for (let i = 0; i < 100; i++) {
+                  const angle = (i - 25) * (Math.PI * 2) / 100;
+                  let startRadius = this.radius - 7;
+                  if (i % 10 === 0) {
+                      startRadius = this.radius - 12;
+                  } else if (i % 5 === 0) {
+                      startRadius = this.radius - 10;
+                  }
+                  const endRadius = this.radius - 5;
+                  
+                  this.ctx.beginPath();
+                  this.ctx.moveTo(
+                      this.centerX + Math.cos(angle) * startRadius,
+                      this.centerY + Math.sin(angle) * startRadius
+                  );
+                  this.ctx.lineTo(
+                      this.centerX + Math.cos(angle) * endRadius,
+                      this.centerY + Math.sin(angle) * endRadius
+                  );
+                  this.ctx.strokeStyle = i % 10 === 0 ? '#333' : '#666';
+                  this.ctx.lineWidth = i % 10 === 0 ? 2 : 1;
+                  this.ctx.stroke();
+              }
+          }
+
+          drawTime() {
+              const now = new Date();
+              let hour = now.getHours();
+              const minute = now.getMinutes();
+              const second = now.getSeconds();
+              const millisecond = now.getMilliseconds();
+              
+              const tenTime = getTenTime();
+              
+              // Day hand
+              const hourAngle = (360 * tenTime + 90) * Math.PI / 180;
+              this.drawHand(hourAngle, this.radius * 0.5, 4, '#333');
+              
+              // 1/10 hand
+              const minuteAngle = (3600 * tenTime + 90) * Math.PI / 180;
+              this.drawHand(minuteAngle, this.radius * 0.7, 3, '#666');
+              
+              // 1/100 hand
+              const secondAngle = (36000 * tenTime + 90) * Math.PI / 180;
+              this.drawHand(secondAngle, this.radius * 0.9, 2, 'red');
+              
+              // 1/1000 hand (commented out as in original)
+              // const microAngle = (360000 * tenTime + 90) * Math.PI / 180;
+              // this.drawHand(microAngle, this.radius * 0.4, 1, 'blue');              
+          }
+
+          drawHand(angle, length, width, color) {
+              this.ctx.beginPath();
+              this.ctx.moveTo(this.centerX, this.centerY);
+              this.ctx.lineTo(
+                  this.centerX + Math.cos(angle) * length,
+                  this.centerY + Math.sin(angle) * length
+              );
+              this.ctx.strokeStyle = color;
+              this.ctx.lineWidth = width;
+              this.ctx.lineCap = 'round';
+              this.ctx.stroke();
+          }
+
+          // Animation methods
+          updateClock() {
+              this.drawClock();
+              if (this.isRunning) {
+                  this.animationId = requestAnimationFrame(() => this.updateClock());
+              }
+          }
+
+          start() {
+              if (!this.isRunning) {
+                  this.isRunning = true;
+                  this.updateClock();
+              }
+          }
+
+          stop() {
+              this.isRunning = false;
+              if (this.animationId) {
+                  cancelAnimationFrame(this.animationId);
+                  this.animationId = null;
+              }
+          }
+      }
+      
+      //************************
+      
+      window.onload = () => {
+        setInterval(updateTime, 1000/2)
+        //864 - 1/100000 дня
+        setInterval(updateTenTime, 864/2)
+        updateTime()
+        updateTenTime()
+        //setInterval(updateTenTime2, 864)
+        //updateTenTime2()
+        
+        let clock = new AnalogClock('clockCanvas')
+        clock.start();
+        let tenClock = new AnalogTenClock('tenClockCanvas')
+        tenClock.start();
+      }      
+    </script>
+</head>
+<body>
+    <div class="center-card">
+        <h1>Десятичные часы</h1>
+        
+        <div style="display: flex; flex-direction: row; gap: 10px">
+          <div style="flex: 1">
+
+            <div class="input-group">
+                <label for="tentime">Десятичное время:</label>
+                <input type="text" id="tentime">
+            </div>
+            <div>
+                <canvas id="tenClockCanvas" width="200" height="200"></canvas>        
+            </div>
+          
+          </div>
+          <div style="flex: 1">
+          
+            <div class="input-group">
+                <label for="normtime">Обычное время:</label>
+                <input type="text" id="normtime">
+            </div>
+            <div>
+                <canvas id="clockCanvas" width="200" height="200"></canvas>
+            </div>          
+          
+          </div>
+
+        </div>
+
+        <div class="divider"></div>
+        
+        <div>
+          Десятичное время - это десятичная дробь от суток,<br>
+          например 06:00 - это 0,25000 или 25 00 0.<br>
+          0,00001 - это 0.864 секунды. 0,001 - 1,44 минуты.
+        </div>
+        <!--div class="input-group">
+            <label for="tentime2">Десятичное время (2):</label>
+            <input type="text" id="tentime2">
+        </div-->        
+        
+    </div>
+</body>
+</html>
